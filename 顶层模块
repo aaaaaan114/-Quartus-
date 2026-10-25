@@ -1,0 +1,99 @@
+module digital_clock_top(
+    input  wire        CLOCK_50,
+    input  wire [3:0]  KEY,           // KEY[0]复位, KEY[1]模式切换, KEY[2]递增
+    input  wire [1:0]  SW,            // SW[0]闹钟使能, SW[1]设置目标(0=时间,1=闹钟)
+    output wire [6:0]  HEX0, HEX1, HEX2, HEX3, HEX4, HEX5,
+    output wire [2:0]  LEDR           // LEDR[0]整点报时, [1]闹钟触发, [2]闹钟使能
+);
+    wire rst_n = KEY[0];
+    wire clk_1hz, clk_1khz;
+
+    // 例化分频器
+    clk_divider u_div(
+        .clk(CLOCK_50), .rst_n(rst_n),
+        .clk_1hz(clk_1hz), .clk_1khz(clk_1khz)
+    );
+
+    // 按键消抖
+    wire k1_pulse, k2_pulse;
+    debounce u_db1(.clk(clk_1khz), .rst_n(rst_n), .key_in(KEY[1]), .key_pulse(k1_pulse));
+    debounce u_db2(.clk(clk_1khz), .rst_n(rst_n), .key_in(KEY[2]), .key_pulse(k2_pulse));
+
+    // 模式状态机 (0=正常, 1=设置时, 2=设置分)
+    reg [1:0] set_state;
+    always @(posedge clk_1khz or negedge rst_n) begin
+        if (!rst_n) set_state <= 2'd0;
+        else if (k1_pulse) set_state <= (set_state == 2'd2) ? 2'd0 : set_state + 1'b1;
+    end
+
+    wire set_mode       = (set_state != 2'd0);
+    wire set_time_mode  = set_mode && !SW[1];
+    wire inc_hour_time  = k2_pulse && (set_state == 2'd1) && !SW[1];
+    wire inc_min_time   = k2_pulse && (set_state == 2'd2) && !SW[1];
+    wire inc_hour_alarm = k2_pulse && (set_state == 2'd1) &&  SW[1];
+    wire inc_min_alarm  = k2_pulse && (set_state == 2'd2) &&  SW[1];
+
+    // 时间寄存器
+    wire [7:0] hour_bcd, min_bcd, sec_bcd;
+
+    // 例化计时核心
+    time_counter u_time(
+        .clk_1hz(clk_1hz), .rst_n(rst_n),
+        .set_mode(set_time_mode),
+        .inc_hour(inc_hour_time), .inc_min(inc_min_time),
+        .sec(sec_bcd), .min(min_bcd), .hour(hour_bcd)
+    );
+
+    // 例化闹钟
+    wire alarm_trig;
+    alarm_ctrl u_alarm(
+        .clk(clk_1khz), .rst_n(rst_n),
+        .set_mode(set_mode),
+        .inc_hour(inc_hour_alarm), .inc_min(inc_min_alarm),
+        .alarm_en(SW[0]),
+        .cur_hour(hour_bcd), .cur_min(min_bcd),
+        .alarm_trig(alarm_trig)
+    );
+
+    // 例化整点报时
+    wire chime_en;
+    hourly_chime u_chime(
+        .clk_1hz(clk_1hz), .rst_n(rst_n),
+        .min(min_bcd), .sec(sec_bcd),
+        .chime_en(chime_en)
+    );
+
+    // 7段数码管译码函数 (共阳极)
+    function [6:0] bcd2seg;
+        input [3:0] b;
+        begin
+            case (b)
+                4'd0: bcd2seg = 7'h40; // 0
+                4'd1: bcd2seg = 7'h79; // 1
+                4'd2: bcd2seg = 7'h24; // 2
+                4'd3: bcd2seg = 7'h30; // 3
+                4'd4: bcd2seg = 7'h19; // 4
+                4'd5: bcd2seg = 7'h12; // 5
+                4'd6: bcd2seg = 7'h02; // 6
+                4'd7: bcd2seg = 7'h78; // 7
+                4'd8: bcd2seg = 7'h00; // 8
+                4'd9: bcd2seg = 7'h10; // 9
+                default: bcd2seg = 7'h7F; // 熄灭
+            endcase
+        end
+    endfunction
+
+    // 数码管显示静态映射 (直接调用函数，不再带[6:0]后缀)
+    assign HEX0 = bcd2seg(sec_bcd[3:0]);   // 秒个位
+    assign HEX1 = bcd2seg(sec_bcd[7:4]);   // 秒十位
+    assign HEX2 = bcd2seg(min_bcd[3:0]);   // 分个位
+    assign HEX3 = bcd2seg(min_bcd[7:4]);   // 分十位
+    assign HEX4 = bcd2seg(hour_bcd[3:0]);  // 时个位
+    assign HEX5 = bcd2seg(hour_bcd[7:4]);  // 时十位
+
+    // LED 指示
+    assign LEDR[0] = chime_en;      // 整点报时灯 (亮约2秒)
+    assign LEDR[1] = alarm_trig;    // 闹钟触发灯
+    assign LEDR[2] = SW[0];         // 闹钟使能指示灯
+
+endmodule
