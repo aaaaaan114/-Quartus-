@@ -3,13 +3,17 @@
 
 module digital_clock_top #(
     parameter integer CLK_HZ = 50000000,
-    parameter integer DEBOUNCE_MS = 20
+    parameter integer DEBOUNCE_MS = 20,
+    parameter integer TONE_HZ = 2000,
+    parameter integer ACTIVE_BUZZER = 0,
+    parameter integer BUZZER_ACTIVE_LOW = 0
 )(
     input  wire CLOCK_50,
     input  wire [3:0] KEY,
     input  wire [1:0] SW,
     output wire [6:0] HEX0, HEX1, HEX2, HEX3, HEX4, HEX5,
-    output wire [2:0] LEDR
+    output wire [2:0] LEDR,
+    output wire BUZZER
 );
     // KEY[0]: asynchronous assertion, two-clock synchronous reset release.
     reg [1:0] reset_sync;
@@ -80,6 +84,14 @@ module digital_clock_top #(
         .clk(CLOCK_50), .rst_n(rst_n),
         .hour_rollover(hour_rollover), .chime_en(chime_en)
     );
+    buzzer_driver #(
+        .CLK_HZ(CLK_HZ), .TONE_HZ(TONE_HZ),
+        .ACTIVE_BUZZER(ACTIVE_BUZZER), .BUZZER_ACTIVE_LOW(BUZZER_ACTIVE_LOW)
+    ) u_buzzer(
+        .clk(CLOCK_50), .rst_n(rst_n),
+        .sound_en(chime_en || alarm_trig), .buzzer(BUZZER)
+    );
+
     wire [7:0] display_hour = show_alarm ? alarm_hour : hour_bcd;
     wire [7:0] display_min = show_alarm ? alarm_min : min_bcd;
     wire [7:0] display_sec = show_alarm ? 8'h00 : sec_bcd;
