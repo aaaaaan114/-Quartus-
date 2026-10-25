@@ -1,0 +1,59 @@
+module time_counter(
+    input  wire       clk_1hz,        
+    input  wire       rst_n,
+    input  wire       set_mode,       
+    input  wire       inc_hour,       
+    input  wire       inc_min,        
+    output reg [7:0]  sec,            // 统一 8 位
+    output reg [7:0]  min,
+    output reg [7:0]  hour            
+);
+    wire tick = clk_1hz && !set_mode; 
+
+    // 秒计数
+    always @(posedge clk_1hz or negedge rst_n) begin
+        if (!rst_n) sec <= 8'h00;
+        else if (tick) begin
+            if (sec == 8'h59) sec <= 8'h00;
+            else if (sec[3:0] == 4'd9) begin
+                sec[3:0] <= 4'd0;
+                sec[7:4] <= sec[7:4] + 1'b1;
+            end else sec[3:0] <= sec[3:0] + 1'b1;
+        end
+    end
+
+    // 分计数
+    always @(posedge clk_1hz or negedge rst_n) begin
+        if (!rst_n) min <= 8'h00;
+        else if (inc_min && set_mode) begin
+            if (min[3:0] == 4'd9) begin
+                min[3:0] <= 4'd0;
+                min[7:4] <= (min[7:4]==4'd5) ? 4'd0 : min[7:4]+1'b1;
+            end else min[3:0] <= min[3:0] + 1'b1;
+        end else if (tick && sec == 8'h59) begin
+            if (min == 8'h59) min <= 8'h00;
+            else if (min[3:0] == 4'd9) begin
+                min[3:0] <= 4'd0;
+                min[7:4] <= min[7:4] + 1'b1;
+            end else min[3:0] <= min[3:0] + 1'b1;
+        end
+    end
+
+    // 时计数
+    always @(posedge clk_1hz or negedge rst_n) begin
+        if (!rst_n) hour <= 8'h00;
+        else if (inc_hour && set_mode) begin
+            if (hour[3:0] == 4'd9) begin
+                hour[3:0] <= 4'd0;
+                hour[7:4] <= hour[7:4] + 1'b1;
+            end else if (hour == 8'h23) hour <= 8'h00;
+            else hour[3:0] <= hour[3:0] + 1'b1;
+        end else if (tick && min == 8'h59 && sec == 8'h59) begin
+            if (hour == 8'h23) hour <= 8'h00;
+            else if (hour[3:0] == 4'd9) begin
+                hour[3:0] <= 4'd0;
+                hour[7:4] <= hour[7:4] + 1'b1;
+            end else hour[3:0] <= hour[3:0] + 1'b1;
+        end
+    end
+endmodule
