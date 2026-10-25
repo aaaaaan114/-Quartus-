@@ -1,0 +1,24 @@
+module hourly_chime(
+    input  wire clk_1hz,
+    input  wire rst_n,
+    input  wire [7:0] min,
+    input  wire [7:0] sec,
+    output reg  chime_en   // 已统一为 chime_en
+);
+    reg [1:0] chime_cnt;
+
+    always @(posedge clk_1hz or negedge rst_n) begin
+        if (!rst_n) begin
+            chime_cnt <= 2'd0;
+            chime_en  <= 1'b0;
+        end else if (min == 8'h00 && sec == 8'h00) begin
+            chime_cnt <= 2'd2;            
+            chime_en  <= 1'b1;
+        end else if (chime_cnt != 0) begin
+            chime_cnt <= chime_cnt - 1'b1;
+            chime_en  <= 1'b1;
+        end else begin
+            chime_en <= 1'b0;
+        end
+    end
+endmodule
