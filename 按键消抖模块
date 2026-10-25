@@ -1,0 +1,33 @@
+module debounce(
+    input  wire clk,        // 1kHz
+    input  wire rst_n,
+    input  wire key_in,
+    output reg  key_pulse   // 消抖后的单周期脉冲
+);
+    reg [1:0] sync;
+    reg [4:0] cnt;
+    reg       key_stable;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            sync      <= 2'b11;
+            cnt       <= 5'd0;
+            key_stable<= 1'b1;
+            key_pulse <= 1'b0;
+        end else begin
+            sync <= {sync[0], key_in};        
+            if (sync[1] != key_stable) begin
+                if (cnt == 5'd19) begin        
+                    key_stable <= sync[1];
+                    key_pulse  <= ~sync[1];    
+                    cnt        <= 5'd0;
+                end else begin
+                    cnt <= cnt + 1'b1;
+                end
+            end else begin
+                cnt       <= 5'd0;
+                key_pulse <= 1'b0;
+            end
+        end
+    end
+endmodule
