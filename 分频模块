@@ -1,0 +1,34 @@
+module clk_divider(
+    input  wire clk,        // 50MHz
+    input  wire rst_n,
+    output reg  clk_1hz,    // 1Hz 使能脉冲
+    output reg  clk_1khz    // 1kHz 扫描/消抖时钟
+);
+    reg [15:0] cnt_1k;
+    reg [9:0]  cnt_1hz;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            cnt_1k  <= 16'd0;
+            clk_1khz<= 1'b0;
+        end else if (cnt_1k == 16'd24999) begin
+            cnt_1k  <= 16'd0;
+            clk_1khz<= ~clk_1khz;
+        end else begin
+            cnt_1k  <= cnt_1k + 1'b1;
+        end
+    end
+
+    always @(posedge clk_1khz or negedge rst_n) begin
+        if (!rst_n) begin
+            cnt_1hz <= 10'd0;
+            clk_1hz <= 1'b0;
+        end else if (cnt_1hz == 10'd499) begin
+            cnt_1hz <= 10'd0;
+            clk_1hz <= 1'b1;          
+        end else begin
+            cnt_1hz <= cnt_1hz + 1'b1;
+            clk_1hz <= 1'b0;
+        end
+    end
+endmodule
