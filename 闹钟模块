@@ -1,0 +1,40 @@
+module alarm_ctrl(
+    input  wire       clk,
+    input  wire       rst_n,
+    input  wire       set_mode,        
+    input  wire       inc_hour,
+    input  wire       inc_min,
+    input  wire       alarm_en,        
+    input  wire [7:0] cur_hour,
+    input  wire [7:0] cur_min,
+    output reg        alarm_trig
+);
+    reg [7:0] alarm_hour;
+    reg [7:0] alarm_min;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            alarm_hour <= 8'h00;
+            alarm_min  <= 8'h00;
+        end else if (set_mode) begin
+            if (inc_hour) begin
+                if (alarm_hour == 8'h23) alarm_hour <= 8'h00;
+                else if (alarm_hour[3:0]==4'd9) begin
+                    alarm_hour[3:0]<=4'd0; alarm_hour[7:4]<=alarm_hour[7:4]+1'b1;
+                end else alarm_hour[3:0]<=alarm_hour[3:0]+1'b1;
+            end
+            if (inc_min) begin
+                if (alarm_min == 8'h59) alarm_min <= 8'h00;
+                else if (alarm_min[3:0]==4'd9) begin
+                    alarm_min[3:0]<=4'd0; alarm_min[7:4]<=alarm_min[7:4]+1'b1;
+                end else alarm_min[3:0]<=alarm_min[3:0]+1'b1;
+            end
+        end
+    end
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) alarm_trig <= 1'b0;
+        else alarm_trig <= alarm_en && !set_mode &&
+                           (cur_hour == alarm_hour) && (cur_min == alarm_min);
+    end
+endmodule
